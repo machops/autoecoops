@@ -1,6 +1,6 @@
 export class Policy {
   constructor() {
-    console.log('Policy Engine initialized');
+    // Policy Engine initialized
   }
 
   async check(input: any): Promise<boolean> {

@@ -1,9 +1,14 @@
+export interface SemanticEngineAnalyzeResult {
+  text: string;
+  confidence: number;
+}
+
 export class SemanticEngine {
   constructor() {
-    console.log('Semantic Engine initialized');
+    // Semantic Engine initialized
   }
 
-  async analyze(text: string): Promise<any> {
+  async analyze(text: string): Promise<SemanticEngineAnalyzeResult> {
     return { text, confidence: 0.95 };
   }
 }

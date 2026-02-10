@@ -36,11 +36,3 @@
     }
   }
 }
-  "pipeline": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
-    "dev": { "cache": false, "persistent": true },
-    "test": {},
-    "lint": {},
-    "seal": { "cache": false }
-  }
-}

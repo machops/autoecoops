@@ -1,6 +1,6 @@
 export class AIEngine {
   constructor() {
-    console.log('AI Engine initialized');
+    // AI Engine initialized
   }
 
   async process(input: string): Promise<string> {
