@@ -1,5 +1,62 @@
 # Contracts-L1 責任邊界與依賴關係圖
 
+## 🖼️ 視覺化責任邊界 (Mermaid)
+
+```mermaid
+flowchart TB
+    subgraph External["外部接口層"]
+      WebUI["apps/web\nNext.js / React"]
+      API["apps/api\nExpress / Controllers"]
+    end
+
+    subgraph Biz["業務邏輯層"]
+      Services["Services\nAuth / Contract / Analysis"]
+    end
+
+    subgraph Engines["共享引擎層"]
+      AI["packages/ai-engine\nAI Router / Cost Tracker"]
+      Semantic["packages/semantic-engine\nVector / Graph / Hybrid"]
+    end
+
+    subgraph Shared["共享工具層"]
+      SharedPkg["packages/shared\nTypes / Utils / Validators"]
+      UI["packages/ui\nComponents / Hooks / Styles"]
+    end
+
+    subgraph Data["數據持久層"]
+      DB["packages/database\nPrisma / Migrations / Seed"]
+    end
+
+    subgraph Infra["外部服務層"]
+      PG["PostgreSQL"]
+      Redis["Redis"]
+      Neo4j["Neo4j"]
+      Pinecone["Pinecone"]
+      OpenAI["OpenAI"]
+      S3["S3/Storage"]
+    end
+
+    WebUI -->|HTTP| API
+    API --> Services
+    Services --> AI
+    Services --> Semantic
+    Services --> SharedPkg
+    Services --> DB
+    WebUI -->|Use| SharedPkg
+    WebUI -->|Use| UI
+    AI --> SharedPkg
+    Semantic --> SharedPkg
+    AI --> DB
+    Semantic --> DB
+    DB --> PG
+    DB --> Redis
+    AI --> OpenAI
+    Semantic --> Pinecone
+    Services --> Redis
+    Services --> S3
+    Services --> Neo4j
+```
+
 ## 📊 垂直分層架構圖
 
 ```
