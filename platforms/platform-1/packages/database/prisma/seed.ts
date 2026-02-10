@@ -86,7 +86,9 @@ async function main() {
   console.log('Seed completed successfully!');
   console.log('Demo user: demo@contracts-l1.com');
   console.log('Admin user: admin@contracts-l1.com');
-  console.log('Password: Set via SEED_PASSWORD env var or using default development password');
+  if (!process.env.SEED_PASSWORD) {
+    console.log('Note: Using default development password. Set SEED_PASSWORD env var to customize.');
+  }
 }
 
 main()

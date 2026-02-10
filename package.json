@@ -1,5 +1,5 @@
 {
-  "name": "contracts-l1",
+  "name": "contracts-l1-monorepo",
   "private": true,
   "version": "0.1.0",
   "description": "AI-driven contract management and analysis platform - Modern monorepo architecture",
