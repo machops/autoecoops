@@ -15,6 +15,8 @@ async function main() {
   await prisma.notification.deleteMany();
 
   // Create demo user with real bcrypt hash for "password123"
+  // NOTE: This is a weak password and should ONLY be used for local development/testing
+  // Never use this password in production environments
   const passwordHash = await bcrypt.hash('password123', 10);
   
   const demoUser = await prisma.user.create({
