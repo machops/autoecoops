@@ -1,13 +1,39 @@
 {
-  "name": "contracts-l1-root",
+  "name": "contracts-l1",
   "private": true,
+  "version": "0.1.0",
+  "description": "AI-driven contract management and analysis platform - Modern monorepo architecture",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@contracts-l1/web",
+    "dev:api": "turbo run dev --filter=@contracts-l1/api",
     "build": "turbo run build",
+    "build:web": "turbo run build --filter=@contracts-l1/web",
+    "build:api": "turbo run build --filter=@contracts-l1/api",
     "test": "turbo run test",
-    "governance:seal": "turbo run seal"
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint --fix",
+    "format": "prettier --write &quot;**/*.{ts,tsx,js,jsx,json,md,yml,yaml}&quot;",
+    "format:check": "prettier --check &quot;**/*.{ts,tsx,js,jsx,json,md,yml,yaml}&quot;",
+    "type-check": "turbo run type-check",
+    "governance:seal": "turbo run seal",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "setup": "bash scripts/setup/setup-dev.sh"
   },
   "devDependencies": {
-    "turbo": "latest"
+    "@types/node": "^20.11.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "turbo": "^1.12.0",
+    "typescript": "^5.3.3"
   }
 }
