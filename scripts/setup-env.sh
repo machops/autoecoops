@@ -9,7 +9,8 @@ echo "🚀 Initializing AutoEcoOps Environment..."
 
 # 1. Configure Git Local Settings (only if not already set)
 echo "📝 Checking local Git settings..."
-if [ -z "$(git config user.name)" ] || [ -z "$(git config user.email)" ]; then
+# Use || true to prevent set -e from exiting if git config is unset
+if [ -z "$(git config user.name 2>/dev/null || true)" ] || [ -z "$(git config user.email 2>/dev/null || true)" ]; then
     echo "Setting default Git identity for AutoEcoOps..."
     git config user.email "evolution@autoecoops.io"
     git config user.name "AutoEcoOps Bot"

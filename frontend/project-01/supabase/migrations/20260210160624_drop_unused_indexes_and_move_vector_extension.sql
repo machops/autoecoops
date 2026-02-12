@@ -14,13 +14,28 @@
     - Extension move is conditional to prevent migration failures
 */
 
--- Only attempt to move vector extension if it exists
+-- Ensure the extensions schema exists and only move vector if needed
 DO $$
+DECLARE
+  current_schema name;
 BEGIN
+  -- Only proceed if the vector extension exists
   IF EXISTS (
     SELECT 1 FROM pg_extension WHERE extname = 'vector'
   ) THEN
-    -- Move vector extension from public to extensions schema
-    ALTER EXTENSION vector SET SCHEMA extensions;
+    -- Look up the current schema of the vector extension
+    SELECT n.nspname
+      INTO current_schema
+      FROM pg_extension e
+      JOIN pg_namespace n ON n.oid = e.extnamespace
+     WHERE e.extname = 'vector';
+
+    -- Only move the extension if it is not already in the extensions schema
+    IF current_schema IS DISTINCT FROM 'extensions' THEN
+      -- Create the target schema if it does not already exist
+      EXECUTE 'CREATE SCHEMA IF NOT EXISTS extensions';
+      -- Move vector extension to the extensions schema
+      EXECUTE 'ALTER EXTENSION vector SET SCHEMA extensions';
+    END IF;
   END IF;
 END $$;
