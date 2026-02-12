@@ -1,9 +1,9 @@
 import { queryAuditEntries, AuditQuery } from '../services/audit.store';
-import { config } from '../config';
 import { logger } from '../services/logger.service';
 
 // ============================================================================
 // Compliance Report Types
+// ============================================================================
 // ============================================================================
 export interface ComplianceReport {
   reportId: string;
