@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-02
+description: platform-02 for AutoEcoOps Ecosystem
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

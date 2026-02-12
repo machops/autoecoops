@@ -1,0 +1,77 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import pinoHttp from 'pino-http';
+import { config } from './config';
+import { logger } from './services/logger.service';
+import { initDatabase, healthCheck as dbHealthCheck, shutdownDatabase } from './services/database.service';
+import memoryRoutes from './routes/memory.routes';
+import type { HealthCheck } from '@autoecops/shared-types';
+
+const app = express();
+
+app.use(helmet());
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', credentials: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(compression());
+app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
+
+// Health
+app.get('/health', async (_req, res) => {
+  const db = await dbHealthCheck();
+  const health: HealthCheck = {
+    status: db.status === 'healthy' ? 'healthy' : 'degraded',
+    version: config.VERSION,
+    uptime: process.uptime() * 1000,
+    timestamp: new Date().toISOString(),
+    checks: { database: { status: db.status as 'healthy' | 'degraded' | 'unhealthy', latencyMs: db.latencyMs } },
+  };
+  res.status(health.status === 'healthy' ? 200 : 503).json(health);
+});
+
+app.get('/ready', async (_req, res) => {
+  const db = await dbHealthCheck();
+  res.status(db.status === 'healthy' ? 200 : 503).json({ ready: db.status === 'healthy' });
+});
+
+app.get('/live', (_req, res) => res.json({ alive: true }));
+
+// Routes
+app.use('/memory', memoryRoutes);
+
+// 404
+app.use((_req, res) => {
+  res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Resource not found' } });
+});
+
+// Error handler
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, 'Unhandled error');
+  res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+});
+
+async function bootstrap(): Promise<void> {
+  logger.info({ port: config.PORT, env: config.NODE_ENV }, 'Starting memory-hub');
+  await initDatabase();
+
+  const server = app.listen(config.PORT, () => {
+    logger.info({ port: config.PORT }, 'memory-hub listening');
+  });
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, 'Shutting down memory-hub');
+    server.close(async () => {
+      await shutdownDatabase();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10000);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+bootstrap().catch((err) => { logger.fatal({ err }, 'Failed to start memory-hub'); process.exit(1); });
+
+export default app;

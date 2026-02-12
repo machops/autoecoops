@@ -1,0 +1,33 @@
+apiVersion: v2
+name: autoecops-ecosystem
+description: AutoEcoOps Ecosystem - Enterprise Kubernetes Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: AutoEcoOps Team
+dependencies:
+  - name: auth-service
+    version: "1.0.0"
+    repository: "file://charts/auth-service"
+  - name: memory-hub
+    version: "1.0.0"
+    repository: "file://charts/memory-hub"
+  - name: event-bus
+    version: "1.0.0"
+    repository: "file://charts/event-bus"
+  - name: policy-audit
+    version: "1.0.0"
+    repository: "file://charts/policy-audit"
+  - name: infra-manager
+    version: "1.0.0"
+    repository: "file://charts/infra-manager"
+  - name: platform-01
+    version: "1.0.0"
+    repository: "file://charts/platform-01"
+  - name: platform-02
+    version: "1.0.0"
+    repository: "file://charts/platform-02"
+  - name: platform-03
+    version: "1.0.0"
+    repository: "file://charts/platform-03"

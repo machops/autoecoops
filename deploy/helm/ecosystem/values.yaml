@@ -1,0 +1,169 @@
+# ============================================================================
+# AutoEcoOps Ecosystem - Global Values
+# ============================================================================
+global:
+  imageRegistry: ghcr.io/autoecops
+  imagePullPolicy: IfNotPresent
+  environment: production
+  logLevel: info
+
+  # Security
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  # Observability
+  otel:
+    enabled: true
+    endpoint: http://otel-collector.observability.svc.cluster.local:4318
+  
+  # Service mesh
+  istio:
+    enabled: false
+
+# ============================================================================
+# Core Services
+# ============================================================================
+auth-service:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: ghcr.io/autoecops/auth-service
+    tag: "1.0.0"
+  service:
+    port: 4001
+    metricsPort: 9090
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 70
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+
+memory-hub:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/memory-hub
+    tag: "1.0.0"
+  service:
+    port: 4002
+    metricsPort: 9091
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: gp3
+
+event-bus:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: ghcr.io/autoecops/event-bus
+    tag: "1.0.0"
+  service:
+    port: 4003
+    metricsPort: 9092
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+policy-audit:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/policy-audit
+    tag: "1.0.0"
+  service:
+    port: 4004
+    metricsPort: 9093
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: gp3
+
+infra-manager:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/infra-manager
+    tag: "1.0.0"
+  service:
+    port: 4005
+    metricsPort: 9094
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ============================================================================
+# Platform Services
+# ============================================================================
+platform-01:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/platform-01
+    tag: "1.0.0"
+  service:
+    port: 5001
+    metricsPort: 9101
+
+platform-02:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/platform-02
+    tag: "1.0.0"
+  service:
+    port: 5002
+    metricsPort: 9102
+
+platform-03:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/autoecops/platform-03
+    tag: "1.0.0"
+  service:
+    port: 5003
+    metricsPort: 9103

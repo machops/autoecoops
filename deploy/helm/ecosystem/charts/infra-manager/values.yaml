@@ -1,0 +1,24 @@
+replicaCount: 2
+image:
+  repository: ghcr.io/autoecops/infra-manager
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 4005
+  metricsPort: 9094
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPU: 70
+env:
+  NODE_ENV: production
+  LOG_LEVEL: info

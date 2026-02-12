@@ -1,0 +1,542 @@
+openapi: 3.1.0
+info:
+  title: AutoEcoOps Ecosystem API
+  version: 1.0.0
+  description: |
+    Unified API specification for the AutoEcoOps Ecosystem.
+    All endpoints require JWT authentication via Bearer token.
+  contact:
+    name: AutoEcoOps Team
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.autoecops.internal
+    description: Production
+  - url: https://api.staging.autoecops.internal
+    description: Staging
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        error:
+          $ref: '#/components/schemas/ApiError'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+        details:
+          type: object
+
+    ResponseMeta:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        traceId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    HealthCheck:
+      type: object
+      required: [status, version, uptime, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        uptime:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              latencyMs:
+                type: number
+
+    PolicyDecision:
+      type: object
+      required: [verdict, policyId, policyVersion, reason, complianceTags, evaluatedAt]
+      properties:
+        verdict:
+          type: string
+          enum: [allow, deny, warn]
+        policyId:
+          type: string
+        policyVersion:
+          type: string
+        reason:
+          type: string
+        complianceTags:
+          type: array
+          items:
+            type: string
+        evaluatedAt:
+          type: string
+          format: date-time
+
+    AuditEntry:
+      type: object
+      required: [timestamp, traceId, actor, resource, action, result]
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+        actor:
+          type: object
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+              enum: [user, service, system]
+            email:
+              type: string
+        resource:
+          type: object
+          properties:
+            kind:
+              type: string
+            id:
+              type: string
+            namespace:
+              type: string
+        action:
+          type: string
+        result:
+          type: string
+          enum: [success, failure, denied]
+        policyDecision:
+          $ref: '#/components/schemas/PolicyDecision'
+        complianceTags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    DomainEvent:
+      type: object
+      required: [type, source, traceId, actor, resource, idempotencyKey, data]
+      properties:
+        type:
+          type: string
+        source:
+          type: string
+        subject:
+          type: string
+        traceId:
+          type: string
+          format: uuid
+        actor:
+          type: object
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+              enum: [user, service, system]
+        resource:
+          type: object
+          properties:
+            kind:
+              type: string
+            id:
+              type: string
+            namespace:
+              type: string
+        policyDecision:
+          $ref: '#/components/schemas/PolicyDecision'
+        idempotencyKey:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, normal, low]
+        data:
+          type: object
+
+  parameters:
+    TraceId:
+      name: x-trace-id
+      in: header
+      schema:
+        type: string
+        format: uuid
+
+paths:
+  # ========== Auth Service ==========
+  /auth/verify:
+    post:
+      tags: [Auth]
+      summary: Verify JWT token
+      operationId: verifyToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Token verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /auth/authorize:
+    post:
+      tags: [Auth]
+      summary: Check authorization
+      operationId: checkAuthorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permission:
+                  type: string
+      responses:
+        '200':
+          description: Authorization decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ========== Memory Hub ==========
+  /memory/search:
+    post:
+      tags: [Memory]
+      summary: Vector search across document store
+      operationId: searchMemory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                topK:
+                  type: integer
+                  default: 10
+                filters:
+                  type: object
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /memory/ingest:
+    post:
+      tags: [Memory]
+      summary: Ingest a document
+      operationId: ingestDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  type: string
+      responses:
+        '201':
+          description: Document ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ========== Event Bus ==========
+  /events/publish:
+    post:
+      tags: [Events]
+      summary: Publish an event
+      operationId: publishEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainEvent'
+      responses:
+        '201':
+          description: Event published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /events/replay/{streamName}:
+    get:
+      tags: [Events]
+      summary: Replay events from a stream
+      operationId: replayEvents
+      parameters:
+        - name: streamName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startId
+          in: query
+          schema:
+            type: string
+        - name: count
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Replayed events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ========== Policy & Audit ==========
+  /policy/evaluate:
+    post:
+      tags: [Policy]
+      summary: Evaluate a policy
+      operationId: evaluatePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [policyPath, input]
+              properties:
+                policyPath:
+                  type: string
+                input:
+                  type: object
+      responses:
+        '200':
+          description: Policy decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /audit/write:
+    post:
+      tags: [Audit]
+      summary: Write an immutable audit entry
+      operationId: writeAuditEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditEntry'
+      responses:
+        '201':
+          description: Audit entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /audit/query:
+    get:
+      tags: [Audit]
+      summary: Query audit entries
+      operationId: queryAuditEntries
+      parameters:
+        - name: startTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endTime
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: resourceKind
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /reports/compliance:
+    post:
+      tags: [Compliance]
+      summary: Generate compliance report
+      operationId: generateComplianceReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [framework, startTime, endTime]
+              properties:
+                framework:
+                  type: string
+                  enum: [SOC2, ISO27001]
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Compliance report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # ========== Infra Manager ==========
+  /infra/applications/{name}:
+    get:
+      tags: [Infra]
+      summary: Get application state
+      operationId: getApplicationState
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /infra/applications/{name}/sync:
+    post:
+      tags: [Infra]
+      summary: Trigger application sync
+      operationId: syncApplication
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revision:
+                  type: string
+                prune:
+                  type: boolean
+      responses:
+        '200':
+          description: Sync triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /infra/drift:
+    get:
+      tags: [Infra]
+      summary: Check drift across all applications
+      operationId: checkDrift
+      responses:
+        '200':
+          description: Drift status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'

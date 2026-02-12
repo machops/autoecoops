@@ -1,5 +1,7 @@
 packages:
+  - 'core/*'
   - 'platforms/*'
+  - 'sdk/*'
   - 'shared-libs/*'
   - 'tools/*'
   - 'apps/*'

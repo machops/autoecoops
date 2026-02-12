@@ -1,0 +1,6 @@
+apiVersion: v2
+name: policy-audit
+description: policy-audit for AutoEcoOps Ecosystem
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
