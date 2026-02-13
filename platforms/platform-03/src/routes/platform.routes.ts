@@ -1,8 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { checkBaselineDrift, registerNode, getInventory, getNode } from '../services/baseline.service';
-import { registerAgent, updateHeartbeat, getAgents, getAgent } from '../services/edge.agent';
-import { logger } from '../services/logger.service';
+import { registerAgent, updateHeartbeat, getAgents } from '../services/edge.agent';
 
 const router = Router();
 
@@ -26,6 +25,18 @@ router.post('/nodes/register', (req: Request, res: Response): void => {
   }
 
   registerNode(baseline);
+  
+  // Normalize baseline structure with defaults for drift-check
+  const normalizedBaseline = {
+    ...baseline,
+    securityBaseline: baseline.securityBaseline ?? {},
+    services: baseline.services ?? [],
+    packages: baseline.packages ?? [],
+    kernelVersion: baseline.kernelVersion ?? '',
+    osVersion: baseline.osVersion ?? '',
+  };
+  
+  registerNode(normalizedBaseline);
   res.status(201).json({ success: true, data: { nodeId: baseline.nodeId }, meta: { requestId: uuidv4(), timestamp: new Date().toISOString() } });
 });
 
@@ -71,6 +82,17 @@ router.post('/agents/register', (req: Request, res: Response): void => {
   }
 
   registerAgent(agent);
+  
+  // Normalize agent structure with required fields for heartbeat monitor
+  const normalizedAgent = {
+    ...agent,
+    lastHeartbeat: agent.lastHeartbeat ?? new Date().toISOString(),
+    status: agent.status ?? 'online',
+    version: agent.version ?? 'unknown',
+    capabilities: agent.capabilities ?? [],
+  };
+  
+  registerAgent(normalizedAgent);
   res.status(201).json({ success: true, data: { agentId: agent.agentId }, meta: { requestId: uuidv4(), timestamp: new Date().toISOString() } });
 });
 

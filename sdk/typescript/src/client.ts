@@ -59,13 +59,13 @@ export class EcosystemClient {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          options.timeout ?? this.config.timeout,
-        );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        options.timeout ?? this.config.timeout,
+      );
 
+      try {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
           ...tracing.toHeaders(),
@@ -82,8 +82,6 @@ export class EcosystemClient {
           signal: controller.signal,
         });
 
-        clearTimeout(timeoutId);
-
         if (!response.ok) {
           const errorBody = await response.text();
           let parsed: { error?: { code?: string; message?: string } } = {};
@@ -98,6 +96,7 @@ export class EcosystemClient {
         }
 
         // Handle 204 No Content and empty responses
+        // Handle 204 No Content or empty responses
         if (response.status === 204 || response.headers.get('content-length') === '0') {
           return undefined as T;
         }
@@ -111,6 +110,8 @@ export class EcosystemClient {
         // For non-JSON responses, return as text or undefined
         const text = await response.text();
         return (text || undefined) as T;
+        // For non-JSON responses, return undefined
+        return undefined as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -122,13 +123,15 @@ export class EcosystemClient {
           const delay = this.config.retryDelayMs * Math.pow(2, attempt);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
     throw new NetworkError(
       lastError?.message ?? 'Request failed after retries',
       this.config.baseUrl,
-      createTrace().traceId,
+      tracing.traceId,
     );
   }
 }

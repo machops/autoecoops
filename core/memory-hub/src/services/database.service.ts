@@ -5,6 +5,14 @@ import { logger } from './logger.service';
 let pool: Pool;
 
 export async function initDatabase(): Promise<void> {
+  // Validate config values before using in SQL
+  if (!Number.isInteger(config.EMBEDDING_DIMENSIONS) || config.EMBEDDING_DIMENSIONS <= 0) {
+    throw new Error(`Invalid EMBEDDING_DIMENSIONS: ${config.EMBEDDING_DIMENSIONS}`);
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(config.EMBEDDING_MODEL_VERSION)) {
+    throw new Error(`Invalid EMBEDDING_MODEL_VERSION: ${config.EMBEDDING_MODEL_VERSION}`);
+  }
+
   pool = new Pool({
     connectionString: config.DATABASE_URL,
     min: config.DB_POOL_MIN,
@@ -20,8 +28,9 @@ export async function initDatabase(): Promise<void> {
 
   const client = await pool.connect();
   try {
-    // Enable pgvector extension
+    // Enable required extensions
     await client.query('CREATE EXTENSION IF NOT EXISTS vector');
+    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
 
     // Create documents table
     await client.query(`
@@ -38,6 +47,7 @@ export async function initDatabase(): Promise<void> {
     `);
 
     // Create chunks table with vector column
+    // Using validated config values - dimensions is integer, version is alphanumeric
     await client.query(`
       CREATE TABLE IF NOT EXISTS document_chunks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
