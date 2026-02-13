@@ -48,6 +48,24 @@ export class EcosystemClient {
     this.config.token = token;
   }
 
+  /**
+   * Make an HTTP request to the API.
+   * 
+   * @template T - Expected response type
+   * @param method - HTTP method (GET, POST, etc.)
+   * @param path - API endpoint path
+   * @param body - Request body (optional)
+   * @param options - Request options (retries, timeout, tracing)
+   * @returns Promise resolving to response data of type T
+   * 
+   * @remarks
+   * For 204 No Content responses or empty bodies, this method returns `undefined`.
+   * When using this method, ensure your type T accounts for potentially undefined values
+   * (e.g., use `T | undefined` or optional chaining when the endpoint may return 204).
+   * 
+   * @throws {EcosystemError} For HTTP errors (4xx/5xx status codes)
+   * @throws {NetworkError} For network failures or timeouts
+   */
   async request<T>(
     method: string,
     path: string,
@@ -109,20 +127,6 @@ export class EcosystemClient {
         }
 
         return (await response.json()) as T;
-        // Handle 204 No Content or empty responses
-        if (response.status === 204 || response.headers.get('content-length') === '0') {
-          return undefined as T;
-        }
-
-        // Check Content-Type before parsing JSON
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          return (await response.json()) as T;
-        }
-
-        // For non-JSON responses, return as text or undefined
-        const text = await response.text();
-        return (text || undefined) as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 

@@ -8,12 +8,25 @@ const router = Router();
 // POST /platform/nodes/register - Register a node with baseline
 router.post('/nodes/register', (req: Request, res: Response): void => {
   const baseline = req.body;
+  
+  // Validate required fields
   if (!baseline.nodeId || !baseline.hostname) {
     res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'nodeId and hostname are required' } });
     return;
   }
 
-  // Validate baseline structure with defaults
+  // Validate required nested objects
+  if (!baseline.os || typeof baseline.os !== 'object') {
+    res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'os object (name, version, kernel) is required' } });
+    return;
+  }
+
+  if (!baseline.hardware || typeof baseline.hardware !== 'object') {
+    res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'hardware object is required' } });
+    return;
+  }
+
+  // Validate baseline structure with defaults for optional fields
   const validatedBaseline = {
     ...baseline,
     securityBaseline: baseline.securityBaseline || {
@@ -25,35 +38,11 @@ router.post('/nodes/register', (req: Request, res: Response): void => {
     },
     services: baseline.services || [],
     packages: baseline.packages || [],
+    lastCheckedAt: baseline.lastCheckedAt || new Date().toISOString(),
   };
 
   registerNode(validatedBaseline);
   res.status(201).json({ success: true, data: { nodeId: validatedBaseline.nodeId }, meta: { requestId: uuidv4(), timestamp: new Date().toISOString() } });
-  // Validate required nested fields for drift checking
-  if (!baseline.securityBaseline || typeof baseline.securityBaseline !== 'object') {
-    res.status(400).json({ success: false, error: { code: 'INVALID_BASELINE', message: 'securityBaseline object is required' } });
-    return;
-  }
-
-  if (!Array.isArray(baseline.services)) {
-    res.status(400).json({ success: false, error: { code: 'INVALID_BASELINE', message: 'services array is required' } });
-    return;
-  }
-
-  registerNode(baseline);
-  
-  // Normalize baseline structure with defaults for drift-check
-  const normalizedBaseline = {
-    ...baseline,
-    securityBaseline: baseline.securityBaseline ?? {},
-    services: baseline.services ?? [],
-    packages: baseline.packages ?? [],
-    kernelVersion: baseline.kernelVersion ?? '',
-    osVersion: baseline.osVersion ?? '',
-  };
-  
-  registerNode(normalizedBaseline);
-  res.status(201).json({ success: true, data: { nodeId: baseline.nodeId }, meta: { requestId: uuidv4(), timestamp: new Date().toISOString() } });
 });
 
 // GET /platform/nodes/inventory - Get hardware inventory
