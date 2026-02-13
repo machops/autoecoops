@@ -12,9 +12,9 @@ import type { HealthCheck } from '@autoecops/shared-types';
 const app = express();
 
 app.use(helmet());
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',');
+const allowedOrigins = process.env.ALLOWED_ORIGINS;
 app.use(cors({
-  origin: allowedOrigins ?? '*',
+  origin: allowedOrigins?.split(',') ?? '*',
   credentials: Boolean(allowedOrigins),
 }));
 app.use(express.json({ limit: '5mb' }));
