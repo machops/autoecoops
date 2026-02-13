@@ -10,7 +10,9 @@ import infraRoutes from './routes/infra.routes';
 
 const app = express();
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? '*';
 app.use(helmet());
+app.use(cors({ origin: allowedOrigins, credentials: allowedOrigins !== '*' }));
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',');
 app.use(cors({
   origin: allowedOrigins ?? '*',
@@ -28,6 +30,7 @@ app.use('/infra', infraRoutes);
 
 app.use((_req, res) => { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Resource not found' } }); });
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  void _next;
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 });
