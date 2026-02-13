@@ -10,10 +10,12 @@ const TRACE_HEADER = 'x-trace-id';
 const SPAN_HEADER = 'x-span-id';
 const SESSION_HEADER = 'x-session-id';
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    authContext?: AuthContext;
-    traceContext?: TraceContext;
+declare global {
+  namespace Express {
+    interface Request {
+      authContext?: AuthContext;
+      traceContext?: TraceContext;
+    }
   }
 }
 
