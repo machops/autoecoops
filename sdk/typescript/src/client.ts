@@ -120,8 +120,9 @@ export class EcosystemClient {
           return (await response.json()) as T;
         }
 
-        // For non-JSON responses, return undefined
-        return undefined as T;
+        // For non-JSON responses, return as text or undefined
+        const text = await response.text();
+        return (text || undefined) as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 

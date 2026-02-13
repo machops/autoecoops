@@ -10,14 +10,13 @@ import infraRoutes from './routes/infra.routes';
 
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? '*';
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: allowedOrigins !== '*' }));
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',');
+const allowedOrigins = process.env.ALLOWED_ORIGINS;
 app.use(cors({
-  origin: allowedOrigins ?? '*',
+  origin: allowedOrigins?.split(',') ?? '*',
   credentials: Boolean(allowedOrigins),
 }));
+app.use(cors({ origin: allowedOrigins, credentials: allowedOrigins !== '*' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(compression());
 app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
