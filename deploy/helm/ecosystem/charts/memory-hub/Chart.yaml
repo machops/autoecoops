@@ -1,0 +1,6 @@
+apiVersion: v2
+name: memory-hub
+description: memory-hub for AutoEcoOps Ecosystem
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

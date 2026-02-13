@@ -1,0 +1,235 @@
+asyncapi: 3.0.0
+info:
+  title: AutoEcoOps Ecosystem Events
+  version: 1.0.0
+  description: |
+    AsyncAPI specification for all domain events in the AutoEcoOps Ecosystem.
+    Events are published via Redis Streams and consumed by platform services.
+
+defaultContentType: application/json
+
+servers:
+  production:
+    host: redis-cluster:6379
+    protocol: redis-streams
+    description: Production Redis Streams cluster
+
+channels:
+  platform-01:healing:
+    address: platform-01:healing
+    messages:
+      healingEvent:
+        $ref: '#/components/messages/HealingEvent'
+    description: Self-healing events from Platform-01
+
+  platform-01:slo:
+    address: platform-01:slo
+    messages:
+      sloEvent:
+        $ref: '#/components/messages/SLOEvent'
+    description: SLO status change events
+
+  platform-02:deployment:
+    address: platform-02:deployment
+    messages:
+      deploymentEvent:
+        $ref: '#/components/messages/DeploymentEvent'
+    description: GitOps deployment events from Platform-02
+
+  platform-02:supply-chain:
+    address: platform-02:supply-chain
+    messages:
+      supplyChainEvent:
+        $ref: '#/components/messages/SupplyChainEvent'
+    description: Supply chain verification events
+
+  platform-03:baseline:
+    address: platform-03:baseline
+    messages:
+      baselineEvent:
+        $ref: '#/components/messages/BaselineEvent'
+    description: Node baseline drift events from Platform-03
+
+  platform-03:agent:
+    address: platform-03:agent
+    messages:
+      agentEvent:
+        $ref: '#/components/messages/AgentEvent'
+    description: Edge agent lifecycle events
+
+  core:audit:
+    address: core:audit
+    messages:
+      auditEvent:
+        $ref: '#/components/messages/AuditEvent'
+    description: Cross-cutting audit events
+
+  core:infra:
+    address: core:infra
+    messages:
+      infraEvent:
+        $ref: '#/components/messages/InfraEvent'
+    description: Infrastructure state change events
+
+operations:
+  publishHealing:
+    action: send
+    channel:
+      $ref: '#/channels/platform-01:healing'
+  subscribeHealing:
+    action: receive
+    channel:
+      $ref: '#/channels/platform-01:healing'
+  publishDeployment:
+    action: send
+    channel:
+      $ref: '#/channels/platform-02:deployment'
+  subscribeDeployment:
+    action: receive
+    channel:
+      $ref: '#/channels/platform-02:deployment'
+  publishBaseline:
+    action: send
+    channel:
+      $ref: '#/channels/platform-03:baseline'
+  subscribeBaseline:
+    action: receive
+    channel:
+      $ref: '#/channels/platform-03:baseline'
+
+components:
+  messages:
+    HealingEvent:
+      name: HealingEvent
+      title: Self-Healing Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+      headers:
+        type: object
+        properties:
+          x-trace-id:
+            type: string
+            format: uuid
+          x-idempotency-key:
+            type: string
+
+    SLOEvent:
+      name: SLOEvent
+      title: SLO Status Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    DeploymentEvent:
+      name: DeploymentEvent
+      title: Deployment Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    SupplyChainEvent:
+      name: SupplyChainEvent
+      title: Supply Chain Verification Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    BaselineEvent:
+      name: BaselineEvent
+      title: Node Baseline Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    AgentEvent:
+      name: AgentEvent
+      title: Edge Agent Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    AuditEvent:
+      name: AuditEvent
+      title: Audit Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+    InfraEvent:
+      name: InfraEvent
+      title: Infrastructure Event
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+
+  schemas:
+    DomainEventEnvelope:
+      type: object
+      required:
+        - type
+        - source
+        - traceId
+        - actor
+        - resource
+        - idempotencyKey
+        - data
+      properties:
+        type:
+          type: string
+          description: Event type (e.g., platform-01.healing.completed)
+        source:
+          type: string
+          description: Source service identifier
+        subject:
+          type: string
+        traceId:
+          type: string
+          format: uuid
+        actor:
+          type: object
+          required: [id, type]
+          properties:
+            id:
+              type: string
+            type:
+              type: string
+              enum: [user, service, system]
+        resource:
+          type: object
+          required: [kind, id]
+          properties:
+            kind:
+              type: string
+            id:
+              type: string
+            namespace:
+              type: string
+        policyDecision:
+          type: object
+          properties:
+            verdict:
+              type: string
+              enum: [allow, deny, warn]
+            policyId:
+              type: string
+            policyVersion:
+              type: string
+            reason:
+              type: string
+            complianceTags:
+              type: array
+              items:
+                type: string
+            evaluatedAt:
+              type: string
+              format: date-time
+        idempotencyKey:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, normal, low]
+          default: normal
+        data:
+          type: object
+          description: Event-specific payload

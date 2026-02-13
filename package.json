@@ -1,8 +1,8 @@
 {
   "name": "contracts-l1-monorepo",
   "private": true,
-  "version": "0.1.0",
-  "description": "AI-driven contract management and analysis platform - Modern monorepo architecture",
+  "version": "1.0.0",
+  "description": "AutoEcoOps Ecosystem - Enterprise Kubernetes Platform with AI-driven contract management",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
@@ -35,6 +35,11 @@
     "docker:dev": "docker compose -f docker/docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f docker/docker-compose.dev.yml down",
     "clean": "turbo run clean && rm -rf node_modules",
+    "build:core": "pnpm -r --filter './core/*' build",
+    "build:platforms": "pnpm -r --filter './platforms/*' build",
+    "build:sdk": "cd sdk/typescript && pnpm build",
+    "test:core": "pnpm -r --filter './core/*' test",
+    "test:platforms": "pnpm -r --filter './platforms/*' test",
     "db:migrate": "cd platforms/platform-1 && pnpm run db:migrate",
     "db:seed": "cd platforms/platform-1 && pnpm run db:seed",
     "db:studio": "cd platforms/platform-1 && pnpm run db:studio",
