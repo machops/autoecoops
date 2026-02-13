@@ -11,8 +11,9 @@ import type { HealthCheck } from '@autoecops/shared-types';
 
 const app = express();
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',');
 app.use(helmet());
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', credentials: true }));
+app.use(cors({ origin: allowedOrigins ?? '*', credentials: Boolean(allowedOrigins) }));
 app.use(express.json({ limit: '5mb' }));
 app.use(compression());
 app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }));
@@ -52,6 +53,7 @@ app.use((_req, res) => {
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  void _next;
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 });
