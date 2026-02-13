@@ -95,7 +95,7 @@ export class EcosystemClient {
           );
         }
 
-        // Handle 204 No Content or empty responses
+        // Handle 204 No Content and empty responses
         if (response.status === 204 || response.headers.get('content-length') === '0') {
           return undefined as T;
         }
@@ -106,8 +106,9 @@ export class EcosystemClient {
           return (await response.json()) as T;
         }
 
-        // For non-JSON responses, return undefined
-        return undefined as T;
+        // For non-JSON responses, return as text or undefined
+        const text = await response.text();
+        return (text || undefined) as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
