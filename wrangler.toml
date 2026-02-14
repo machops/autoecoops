@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 # Cloudflare Pages build configuration
 [build]
 pages_build_output_dir = "frontend/project-01/.open-next/assets"
-command = "pnpm install --no-frozen-lockfile && pnpm --filter \"./frontend/project-01...\" run build:cf"
+command = "pnpm install --no-frozen-lockfile && cd frontend/project-01 && pnpm run build:cf"
 cwd = "."
 watch_paths = ["frontend/project-01/**/*.{ts,tsx,js,jsx,json,css}"]
 
