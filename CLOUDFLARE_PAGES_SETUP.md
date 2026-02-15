@@ -9,6 +9,8 @@ The `build:cf` command has been updated to:
 "build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@latest build && mv .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ 2>/dev/null || true && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/feed.xml\",\"/404.html\",\"/BUILD_ID\",\"/search.json\",\"/tags/*\"]},null,2))'"
 ```
 
+> **Note:** This is a long command that could be refactored into a separate script file for better maintainability. However, it's kept inline as requested to ensure compatibility with Cloudflare Pages direct GitHub deployment.
+
 **What this does:**
 - Uses `@opennextjs/cloudflare@latest` for the most up-to-date adapter
 - Keeps Supabase environment variables
@@ -55,9 +57,15 @@ Go to your Cloudflare Pages project:
    Keep this as root, not `frontend/project-01`
 
 5. **Environment variables (if not already set):**
-   These are already in the build command, but you can also set them in Cloudflare Pages:
+   These are already in the build command as inline environment variables.
+   
+   **Note:** The Supabase keys shown are public anonymous keys (indicated by `NEXT_PUBLIC_` and `sb_publishable_` prefixes) that are meant to be exposed in client-side code. For better security practices in production, consider setting these as Cloudflare Pages environment variables instead of inline in the build command.
+   
+   If you want to move them to Cloudflare Pages environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`: `https://yrfxijooswpvdpdseswy.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: `sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd`
+   
+   Then update the build:cf command to remove the inline variables.
 
 ---
 
