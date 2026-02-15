@@ -32,7 +32,7 @@ export function CodeEditor({ projectId }: CodeEditorProps) {
     if (user && projectId) {
       fetchProject();
     }
-  }, [fetchProject]);
+  }, [user, projectId, fetchProject]);
 
   const fetchProject = useCallback(async () => {
     setProjectLoading(true);
@@ -60,7 +60,7 @@ export function CodeEditor({ projectId }: CodeEditorProps) {
       setProjectLoading(false);
       setInitLoading(false);
     }
-  }, [projectId, user, router, setCurrentProject, setProjectLoading]);
+  }, [projectId, router, setCurrentProject, setProjectLoading]);
 
   if (loading || initLoading) {
     return (
