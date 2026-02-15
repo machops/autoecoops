@@ -11,21 +11,22 @@
 
 **新指令：**
 ```json
-"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@latest build && mv .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ 2>/dev/null || true && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/feed.xml\",\"/404.html\",\"/BUILD_ID\",\"/search.json\",\"/tags/*\"]},null,2))'"
+"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))'"
 ```
 
 **變更內容：**
 - ✅ 保留了 Supabase 環境變數
-- ✅ 升級到 `@opennextjs/cloudflare@latest` 使用最新版本
+- ✅ 使用 `@opennextjs/cloudflare@1.16.5` 固定版本（確保可重現的建置）
 - ✅ 添加後處理步驟：
   1. `mv .open-next/worker.js .open-next/_worker.js` - 重新命名為 Cloudflare Pages 需要的格式
-  2. `cp -r .open-next/assets/* .open-next/` - 複製 assets 到正確位置
-  3. `node -e '...'` - 生成 `_routes.json` 路由配置檔案
+  2. 檢查並複製 assets 到正確位置，包含錯誤處理
+  3. `node -e '...'` - 生成 `_routes.json` 路由配置檔案（只排除必要的靜態檔案）
 
-### 2. 重新命名根目錄的 `wrangler.toml`
+### 2. 移除根目錄的 `wrangler.toml`
 
-- ✅ 已將 `wrangler.toml` 重新命名為 `wrangler.toml.bak`
+- ✅ 已移除 `wrangler.toml` 檔案
 - ✅ 這樣可以避免 Cloudflare Pages 的警告訊息
+- ℹ️ 注意：`frontend/project-01/wrangler.toml` 仍然保留供本地開發使用
 
 ---
 
@@ -45,14 +46,17 @@
 |---------|--------|
 | **Framework preset** | `Next.js (Static HTML Export)` 或 `None` |
 | **Build command** | `pnpm run build:cf --filter=./frontend/project-01...` |
-| **Build output directory** | `frontend/project-01/.open-next` |
+| **Build output directory** | `frontend/project-01/.open-next` (注意：是 `.open-next` 不是 `.open-next/assets`) |
 | **Root directory** | `/` (保持根目錄，不要改成 frontend/project-01) |
 
-### 備選的 Build command
-如果上面的指令不行，可以試試：
+> **重要：** 此專案使用 pnpm monorepo 結構，請務必使用上面的 `--filter` 指令。
+
+### 備選的 Build command（僅適用於非 monorepo 設定）
+⚠️ **警告：** 在 pnpm monorepo/workspace 環境下，以下指令**不會正常運作**：
 ```bash
 cd frontend/project-01 && pnpm run build:cf
 ```
+此指令會讓 pnpm 忽略 workspace 根目錄，導致依賴解析失敗。
 
 ---
 
@@ -87,6 +91,12 @@ frontend/project-01/.open-next/
 - ❌ `worker.js` 沒有重新命名為 `_worker.js`（Cloudflare Pages 要求）
 - ❌ assets 沒有複製到正確位置
 - ❌ 缺少 `_routes.json`，導致路由問題和 404 錯誤
+
+**已修正的改進：**
+- ✅ 固定 `@opennextjs/cloudflare@1.16.5` 版本，確保可重現的建置
+- ✅ 添加適當的錯誤處理機制
+- ✅ 清理 `_routes.json` 只排除相關的靜態資源
+- ✅ 輸出目錄從 `.open-next/assets` 改為 `.open-next` 根目錄
 
 現在這些問題都已修正！✅
 

@@ -6,22 +6,24 @@
 
 The `build:cf` command has been updated to:
 ```json
-"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@latest build && mv .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/ 2>/dev/null || true && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/feed.xml\",\"/404.html\",\"/BUILD_ID\",\"/search.json\",\"/tags/*\"]},null,2))'"
+"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))'"
 ```
 
 > **Note:** This is a long command that could be refactored into a separate script file for better maintainability. However, it's kept inline as requested to ensure compatibility with Cloudflare Pages direct GitHub deployment.
 
 **What this does:**
-- Uses `@opennextjs/cloudflare@latest` for the most up-to-date adapter
-- Keeps Supabase environment variables
+- Uses `@opennextjs/cloudflare@1.16.5` (pinned version for reproducible builds)
+- Keeps Supabase environment variables (public anonymous keys safe for client-side use)
 - **Post-processing steps:**
   1. Renames `worker.js` to `_worker.js` (required by Cloudflare Pages)
-  2. Copies assets from `.open-next/assets/*` to `.open-next/` root
-  3. Generates `_routes.json` with proper routing rules to avoid 404s
+  2. Copies assets from `.open-next/assets/*` to `.open-next/` root with error checking
+  3. Generates `_routes.json` with routing rules for static assets (excludes routes that should be served by Cloudflare Pages directly)
 
-### 2. Renamed `wrangler.toml` to `wrangler.toml.bak`
+### 2. Removed `wrangler.toml`
 
-This prevents Cloudflare Pages from showing warnings about the wrangler.toml file. The file is now renamed but kept for reference if needed.
+The root `wrangler.toml` file has been removed to prevent Cloudflare Pages from showing warnings about a Wrangler configuration file in a Pages-only project. If you see references to `wrangler.toml` in older documentation (such as `docs/deployment/CLOUDFLARE_PAGES_DEPLOYMENT.md`) or commits, those are now obsolete and no longer required for this setup.
+
+**Note:** There is still a `frontend/project-01/wrangler.toml` file for local development with `wrangler pages dev`, but the root-level file that was causing warnings has been removed.
 
 ---
 
@@ -40,15 +42,21 @@ Go to your Cloudflare Pages project:
    pnpm run build:cf --filter=./frontend/project-01...
    ```
    
-   Alternative if above doesn't work:
+   > **Important:** This repository uses a pnpm monorepo with workspace configuration. Always use the `--filter` command above.
+   
+   Alternative for **non-monorepo / non-pnpm-workspace setups only:**
    ```bash
    cd frontend/project-01 && pnpm run build:cf
    ```
+   
+   > **Warning:** The `cd`-based command above will NOT work correctly in a pnpm monorepo/workspace setup (shared `pnpm-lock.yaml` at repo root or cross-workspace dependencies). It will cause pnpm to ignore the workspace root and break dependency resolution.
 
 3. **Build output directory:**
    ```
    frontend/project-01/.open-next
    ```
+   
+   > **Note:** The output directory is `.open-next` (not `.open-next/assets`). The build:cf command copies assets from `.open-next/assets/*` to the `.open-next/` root as part of post-processing. This change ensures all required files (worker, routes config, and assets) are at the correct locations for Cloudflare Pages.
 
 4. **Root directory (Project root path):**
    ```
@@ -109,3 +117,9 @@ The previous issue (only 52 files uploaded) was likely because:
 - `worker.js` wasn't renamed to `_worker.js` (Cloudflare Pages requirement)
 - Assets weren't copied to the correct location
 - `_routes.json` was missing, causing routing issues
+
+**Changes made to fix this:**
+- ✅ Pinned `@opennextjs/cloudflare@1.16.5` for reproducible builds
+- ✅ Added proper error handling for asset copying
+- ✅ Cleaned up `_routes.json` to exclude only relevant static assets
+- ✅ Output directory changed from `.open-next/assets` to `.open-next` root
