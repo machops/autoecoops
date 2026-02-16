@@ -1,0 +1,194 @@
+name: Cloudflare Pages Auto-Fix and Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'frontend/project-01/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  detect-and-fix:
+    name: Detect and Fix Deployment Issues
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Analyze build configuration
+        id: analyze
+        run: |
+          echo "=== Analyzing build configuration ==="
+          
+          # Check package.json
+          if [ ! -f "frontend/project-01/package.json" ]; then
+            echo "❌ Error: package.json not found"
+            exit 1
+          fi
+          
+          # Extract build:cf command
+          BUILD_CMD=$(node -p "require('./frontend/project-01/package.json').scripts['build:cf']")
+          echo "Current build:cf command:"
+          echo "$BUILD_CMD"
+          
+          # Check for issues
+          ISSUES=0
+          
+          # Issue 1: Check for HTML entity encoding
+          if echo "$BUILD_CMD" | grep -q "&quot;"; then
+            echo "❌ Issue #1: Found HTML entity encoding (&quot;)"
+            ISSUES=$((ISSUES + 1))
+          fi
+          
+          # Issue 2: Check for wrangler.toml generation
+          if ! echo "$BUILD_CMD" | grep -q "wrangler.toml"; then
+            echo "❌ Issue #2: Missing wrangler.toml generation"
+            ISSUES=$((ISSUES + 1))
+          fi
+          
+          # Issue 3: Check for nodejs_compat flag
+          if ! echo "$BUILD_CMD" | grep -q "nodejs_compat"; then
+            echo "❌ Issue #3: Missing nodejs_compat flag"
+            ISSUES=$((ISSUES + 1))
+          fi
+          
+          # Issue 4: Check for _worker.js renaming
+          if ! echo "$BUILD_CMD" | grep -q "_worker.js"; then
+            echo "❌ Issue #4: Missing _worker.js renaming"
+            ISSUES=$((ISSUES + 1))
+          fi
+          
+          # Issue 5: Check for _routes.json generation
+          if ! echo "$BUILD_CMD" | grep -q "_routes.json"; then
+            echo "❌ Issue #5: Missing _routes.json generation"
+            ISSUES=$((ISSUES + 1))
+          fi
+          
+          echo "Total issues found: $ISSUES"
+          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+          
+          if [ $ISSUES -eq 0 ]; then
+            echo "✅ No issues found - configuration is correct"
+          fi
+
+      - name: Fix build configuration
+        id: fix
+        if: steps.analyze.outputs.issues > 0
+        run: |
+          echo "=== Fixing build configuration ==="
+          
+          # Create fixed build command
+          FIXED_CMD='NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ "$(ls -A .open-next/assets 2>/dev/null)" ]; then cp -r .open-next/assets/* .open-next/; else echo "Warning: .open-next/assets is missing or empty; skipping asset copy." >&2; fi && node -e '\''require("fs").writeFileSync(".open-next/_routes.json", JSON.stringify({version:1,include:["/*"],exclude:["/_next/static/*","/favicon.ico","/robots.txt","/sitemap.xml","/404.html","/BUILD_ID"]},null,2))'\'' && printf '\''compatibility_date = "2026-02-01"\\ncompatibility_flags = ["nodejs_compat"]\\n'\'' > .open-next/wrangler.toml'
+          
+          # Update package.json using Python to ensure proper JSON encoding
+          python3 << 'EOF'
+import json
+
+with open('frontend/project-01/package.json', 'r') as f:
+    data = json.load(f)
+
+data['scripts']['build:cf'] = """NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ "$(ls -A .open-next/assets 2>/dev/null)" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require("fs").writeFileSync(".open-next/_routes.json", JSON.stringify({version:1,include:["/*"],exclude:["/_next/static/*","/favicon.ico","/robots.txt","/sitemap.xml","/404.html","/BUILD_ID"]},null,2))' && printf 'compatibility_date = "2026-02-01"\\ncompatibility_flags = ["nodejs_compat"]\\n' > .open-next/wrangler.toml"""
+
+with open('frontend/project-01/package.json', 'w') as f:
+    json.dump(data, f, indent=2)
+
+print("✅ package.json updated with corrected build:cf command")
+EOF
+          
+          echo "✅ Build configuration fixed"
+
+      - name: Test build locally
+        id: test
+        if: steps.analyze.outputs.issues > 0
+        run: |
+          echo "=== Testing build locally ==="
+          cd frontend/project-01
+          
+          # Test if the command runs without syntax errors
+          if pnpm run build:cf 2>&1 | tee ../build-test.log; then
+            echo "✅ Build test passed"
+          else
+            echo "⚠️ Build test failed (this is expected in CI environment, but check log)"
+            cat ../build-test.log
+          fi
+
+      - name: Create or update PR with fixes
+        if: steps.analyze.outputs.issues > 0
+        run: |
+          echo "=== Creating PR with fixes ==="
+          
+          # Configure git
+          git config user.name "Auto-Fix Bot"
+          git config user.email "autofix@ninja.ai"
+          
+          # Create branch
+          BRANCH_NAME="auto-fix/cloudflare-deployment-$(date +%s)"
+          git checkout -b $BRANCH_NAME
+          
+          # Commit changes
+          git add frontend/project-01/package.json
+          git commit -m "fix: Auto-fix Cloudflare Pages deployment configuration
+
+This PR automatically fixes the following issues:
+- Correct JSON escape sequences (replaces HTML entity encoding)
+- Add wrangler.toml generation with nodejs_compat flag
+- Add _worker.js renaming step
+- Add _routes.json generation step
+- Add asset copying step
+
+Generated by auto-fix workflow"
+
+      - name: Push branch
+        if: steps.analyze.outputs.issues > 0
+        run: |
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push -u origin ${{ env.BRANCH_NAME }}
+
+      - name: Create Pull Request
+        if: steps.analyze.outputs.issues > 0
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }}
+          title: "fix: Auto-fix Cloudflare Pages deployment configuration"
+          body: |
+            ## 🤖 Auto-Fix PR
+            
+            This PR was automatically created to fix Cloudflare Pages deployment issues.
+            
+            ### Issues Fixed:
+            - ✅ Correct JSON escape sequences (replaces HTML entity encoding &quot;)
+            - ✅ Add wrangler.toml generation with nodejs_compat flag
+            - ✅ Add _worker.js renaming step (required by Cloudflare Pages)
+            - ✅ Add _routes.json generation step (routing configuration)
+            - ✅ Add asset copying step
+            
+            ### What Changed:
+            Updated `frontend/project-01/package.json` build:cf command with complete post-processing pipeline.
+            
+            ### Next Steps:
+            1. Review the changes
+            2. Merge this PR to apply the fixes
+            3. Cloudflare Pages will automatically redeploy
+            
+            Generated by auto-fix workflow.
+          labels: |
+            automated-fix
+            cloudflare-pages

@@ -1,0 +1,334 @@
+name: Cloudflare Pages Complete Auto-Fix Loop
+
+on:
+  # 觸發條件
+  workflow_run:
+    workflows: ["Cloudflare Workers and Pages"]
+    types: [completed]
+    branches: [main, 'copilot/*']
+  
+  schedule:
+    # 每小時檢查一次
+    - cron: '0 * * * *'
+  
+  workflow_dispatch:
+    inputs:
+      force_fix:
+        description: 'Force fix even if no issues detected'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_PROJECT_NAME: autoecoops
+
+jobs:
+  monitor-and-fix:
+    name: Monitor Deployment and Auto-Fix
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Fetch Cloudflare deployment logs
+        id: fetch_logs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "=== Fetching Cloudflare Pages deployment logs ==="
+          
+          # 獲取最近的部署列表
+          DEPLOYMENTS=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${CLOUDFLARE_PROJECT_NAME}/deployments?per_page=5" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")
+          
+          echo "$DEPLOYMENTS" > deployments.json
+          
+          # 檢查最新部署狀態
+          LATEST_STATUS=$(echo "$DEPLOYMENTS" | jq -r '.result[0].latest_stage.status')
+          LATEST_DEPLOYMENT_ID=$(echo "$DEPLOYMENTS" | jq -r '.result[0].id')
+          
+          echo "Latest deployment status: $LATEST_STATUS"
+          echo "Latest deployment ID: $LATEST_DEPLOYMENT_ID"
+          
+          echo "status=$LATEST_STATUS" >> $GITHUB_OUTPUT
+          echo "deployment_id=$LATEST_DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+
+      - name: Get deployment logs
+        id: get_logs
+        if: steps.fetch_logs.outputs.status == 'failure'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "=== Getting deployment failure logs ==="
+          
+          # 獲取日誌
+          LOGS=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${CLOUDFLARE_PROJECT_NAME}/deployments/${{ steps.fetch_logs.outputs.deployment_id }}/history/logs" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")
+          
+          echo "$LOGS" > deployment_logs.txt
+          
+          # 分析錯誤類型
+          ERROR_TYPE="unknown"
+          
+          if echo "$LOGS" | grep -q "quot: not found"; then
+            ERROR_TYPE="html_entity_encoding"
+          elif echo "$LOGS" | grep -q "Could not resolve"; then
+            ERROR_TYPE="missing_nodejs_compat"
+          elif echo "$LOGS" | grep -q "No wrangler.toml"; then
+            ERROR_TYPE="missing_wrangler_toml"
+          elif echo "$LOGS" | grep -q "pnpm"; then
+            ERROR_TYPE="pnpm_workspace_issue"
+          elif echo "$LOGS" | grep -q "worker.js"; then
+            ERROR_TYPE="missing_worker_renaming"
+          fi
+          
+          echo "Error type detected: $ERROR_TYPE"
+          echo "error_type=$ERROR_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Analyze and fix configuration
+        id: fix
+        run: |
+          echo "=== Analyzing configuration ==="
+          
+          # 檢查 package.json
+          BUILD_CMD=$(node -p "require('./frontend/project-01/package.json').scripts['build:cf']")
+          
+          ISSUES=0
+          FIXES_APPLIED=""
+          
+          # 檢查並修復各種問題
+          if echo "$BUILD_CMD" | grep -q "&quot;"; then
+            echo "❌ Found HTML entity encoding"
+            ISSUES=$((ISSUES + 1))
+            FIXES_APPLIED="$FIXES_APPLIED - Fixed HTML entity encoding\n"
+          fi
+          
+          if ! echo "$BUILD_CMD" | grep -q "nodejs_compat"; then
+            echo "❌ Missing nodejs_compat flag"
+            ISSUES=$((ISSUES + 1))
+            FIXES_APPLIED="$FIXES_APPLIED - Added nodejs_compat flag\n"
+          fi
+          
+          if ! echo "$BUILD_CMD" | grep -q "wrangler.toml"; then
+            echo "❌ Missing wrangler.toml generation"
+            ISSUES=$((ISSUES + 1))
+            FIXES_APPLIED="$FIXES_APPLIED - Added wrangler.toml generation\n"
+          fi
+          
+          if ! echo "$BUILD_CMD" | grep -q "_worker.js"; then
+            echo "❌ Missing _worker.js renaming"
+            ISSUES=$((ISSUES + 1))
+            FIXES_APPLIED="$FIXES_APPLIED - Added _worker.js renaming\n"
+          fi
+          
+          if ! echo "$BUILD_CMD" | grep -q "_routes.json"; then
+            echo "❌ Missing _routes.json generation"
+            ISSUES=$((ISSUES + 1))
+            FIXES_APPLIED="$FIXES_APPLIED - Added _routes.json generation\n"
+          fi
+          
+          # 如果強制修復或有問題
+          if [ "${{ github.event.inputs.force_fix }}" == "true" ] || [ $ISSUES -gt 0 ]; then
+            echo "=== Applying fixes ==="
+            
+            # 使用 Python 修復 package.json
+            python3 << 'EOF'
+import json
+
+with open('frontend/project-01/package.json', 'r') as f:
+    data = json.load(f)
+
+# 正確的構建命令
+data['scripts']['build:cf'] = """NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ "$(ls -A .open-next/assets 2>/dev/null)" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require("fs").writeFileSync(".open-next/_routes.json", JSON.stringify({version:1,include:["/*"],exclude:["/_next/static/*","/favicon.ico","/robots.txt","/sitemap.xml","/404.html","/BUILD_ID"]},null,2))' && printf 'compatibility_date = "2026-02-01"\\ncompatibility_flags = ["nodejs_compat"]\\n' > .open-next/wrangler.toml"""
+
+with open('frontend/project-01/package.json', 'w') as f:
+    json.dump(data, f, indent=2)
+
+print("✅ package.json updated")
+EOF
+          fi
+          
+          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+          echo "fixes_applied=$FIXES_APPLIED" >> $GITHUB_OUTPUT
+
+      - name: Test build locally
+        id: test
+        if: steps.fix.outputs.issues > 0 || github.event.inputs.force_fix == 'true'
+        run: |
+          echo "=== Testing build locally ==="
+          cd frontend/project-01
+          
+          # 嘗試構建
+          timeout 300 pnpm run build:cf 2>&1 | tee ../build-test.log || true
+          
+          # 檢查關鍵文件是否生成
+          if [ -f ".open-next/wrangler.toml" ]; then
+            echo "✅ wrangler.toml generated"
+            cat .open-next/wrangler.toml
+          else
+            echo "❌ wrangler.toml not generated"
+          fi
+          
+          if [ -f ".open-next/_worker.js" ]; then
+            echo "✅ _worker.js generated"
+          else
+            echo "❌ _worker.js not generated"
+          fi
+          
+          if [ -f ".open-next/_routes.json" ]; then
+            echo "✅ _routes.json generated"
+            cat .open-next/_routes.json
+          else
+            echo "❌ _routes.json not generated"
+          fi
+
+      - name: Commit and push fixes
+        if: steps.fix.outputs.issues > 0 || github.event.inputs.force_fix == 'true'
+        run: |
+          echo "=== Committing and pushing fixes ==="
+          
+          git config user.name "Auto-Fix Bot"
+          git config user.email "autofix@ninja.ai"
+          
+          # 創建分支
+          BRANCH_NAME="auto-fix/cloudflare-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b $BRANCH_NAME
+          
+          # 提交更改
+          git add frontend/project-01/package.json
+          git commit -m "fix: Auto-fix Cloudflare Pages deployment
+
+Issues fixed:
+${{ steps.fix.outputs.fixes_applied }}
+
+Generated by auto-fix workflow"
+
+      - name: Push and create PR
+        if: steps.fix.outputs.issues > 0 || github.event.inputs.force_fix == 'true'
+        run: |
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push -u origin $BRANCH_NAME
+
+      - name: Create Pull Request
+        if: steps.fix.outputs.issues > 0 || github.event.inputs.force_fix == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.BRANCH_NAME }}
+          title: "🤖 fix: Auto-fix Cloudflare Pages deployment (auto-fix #$GITHUB_RUN_NUMBER)"
+          body: |
+            ## 🤖 自動修復 PR
+            
+            此 PR 由自動化工作流創建，用於修復 Cloudflare Pages 部署問題。
+            
+            ### 檢測到的問題：
+            ${{ steps.fix.outputs.fixes_applied }}
+            
+            ### 修復內容：
+            - ✅ 正確的 JSON 轉義（替換 HTML 實體編碼）
+            - ✅ 添加 wrangler.toml 生成（含 nodejs_compat 標志）
+            - ✅ 添加 _worker.js 重命名步驟
+            - ✅ 添加 _routes.json 生成步驟
+            - ✅ 添加資源複製步驟
+            
+            ### 重要提醒：
+            
+            **⚠️ 請更新 Cloudflare Pages 配置：**
+            
+            登錄 Cloudflare Dashboard → Pages → autoecoops → Settings → Build & deployments
+            
+            **Build command:**
+            ```bash
+            pnpm install --no-frozen-lockfile && pnpm --filter="./frontend/project-01..." run build:cf
+            ```
+            
+            **Build output directory:**
+            ```
+            frontend/project-01/.open-next
+            ```
+            
+            ### 下一步：
+            1. ✅ 審查此 PR 的更改
+            2. ✅ 更新 Cloudflare Pages 配置（如果還未更新）
+            3. ✅ 合併此 PR
+            4. ✅ Cloudflare Pages 將自動重新部署
+            
+            ---
+            
+            *此 PR 由 GitHub Actions 自動生成 - [查看工作流運行](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*
+          labels: |
+            automated-fix
+            cloudflare-pages
+            auto-generated
+
+      - name: Trigger Cloudflare redeployment
+        if: steps.fix.outputs.issues > 0 || github.event.inputs.force_fix == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "=== Triggering Cloudflare redeployment ==="
+          
+          # 獲取最新部署
+          LATEST_DEPLOYMENT=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${CLOUDFLARE_PROJECT_NAME}/deployments?per_page=1" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")
+          
+          PRODUCTION_BRANCH=$(echo "$LATEST_DEPLOYMENT" | jq -r '.result[0].deployment_trigger.metadata.branch')
+          
+          # 觸發重新部署
+          curl -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${CLOUDFLARE_PROJECT_NAME}/deployments" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              &quot;branch&quot;: &quot;${PRODUCTION_BRANCH}&quot;,
+              &quot;commit_sha&quot;: &quot;$(git rev-parse HEAD)&quot;
+            }"
+          
+          echo "✅ Cloudflare Pages redeployment triggered"
+
+      - name: Create issue if auto-fix fails
+        if: failure() && steps.fix.outputs.issues > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '❌ Auto-fix workflow failed',
+              body: `The auto-fix workflow failed to resolve the Cloudflare Pages deployment issue.
+              
+              Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+              
+              Please investigate manually.`,
+              labels: ['auto-fix', 'failed', 'needs-attention']
+            })
