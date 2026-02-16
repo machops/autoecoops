@@ -6,7 +6,7 @@
 
 The `build:cf` command has been updated to:
 ```json
-"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))'"
+"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))' && printf 'compatibility_date = \"2026-02-01\"\\ncompatibility_flags = [\"nodejs_compat\"]\\n' > .open-next/wrangler.toml"
 ```
 
 > **Note:** This is a long command that could be refactored into a separate script file for better maintainability. However, it's kept inline as requested to ensure compatibility with Cloudflare Pages direct GitHub deployment.
@@ -18,6 +18,7 @@ The `build:cf` command has been updated to:
   1. Renames `worker.js` to `_worker.js` (required by Cloudflare Pages)
   2. Copies assets from `.open-next/assets/*` to `.open-next/` root with error checking
   3. Generates `_routes.json` with routing rules for static assets (excludes routes that should be served by Cloudflare Pages directly)
+  4. Generates `wrangler.toml` in `.open-next/` with `nodejs_compat` flag to resolve Node.js module imports
 
 ### 2. Removed `wrangler.toml`
 

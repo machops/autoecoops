@@ -11,7 +11,7 @@
 
 **新指令：**
 ```json
-"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))'"
+"build:cf": "NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ \"$(ls -A .open-next/assets 2>/dev/null)\" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require(\"fs\").writeFileSync(\".open-next/_routes.json\", JSON.stringify({version:1,include:[\"/*\"],exclude:[\"/_next/static/*\",\"/favicon.ico\",\"/robots.txt\",\"/sitemap.xml\",\"/404.html\",\"/BUILD_ID\"]},null,2))' && printf 'compatibility_date = \"2026-02-01\"\\ncompatibility_flags = [\"nodejs_compat\"]\\n' > .open-next/wrangler.toml"
 ```
 
 **變更內容：**
@@ -21,6 +21,7 @@
   1. `mv .open-next/worker.js .open-next/_worker.js` - 重新命名為 Cloudflare Pages 需要的格式
   2. 檢查並複製 assets 到正確位置，包含錯誤處理
   3. `node -e '...'` - 生成 `_routes.json` 路由配置檔案（只排除必要的靜態檔案）
+  4. `printf '...'` - 生成 `wrangler.toml` 包含 `nodejs_compat` 標誌以解決 Node.js 模組導入問題
 
 ### 2. 移除根目錄的 `wrangler.toml`
 
