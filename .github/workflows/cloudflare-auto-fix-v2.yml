@@ -158,21 +158,8 @@ jobs:
           if [ "${{ github.event.inputs.force_fix }}" == "true" ] || [ $ISSUES -gt 0 ]; then
             echo "=== Applying fixes ==="
             
-            # 使用 Python 修復 package.json
-            python3 << 'EOF'
-import json
-
-with open('frontend/project-01/package.json', 'r') as f:
-    data = json.load(f)
-
-# 正確的構建命令
-data['scripts']['build:cf'] = """NEXT_PUBLIC_SUPABASE_URL=https://yrfxijooswpvdpdseswy.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_rhTyBa4IqqV14nV_B87S7g_zKzDSYTd npx @opennextjs/cloudflare@1.16.5 build && mv .open-next/worker.js .open-next/_worker.js && if [ -d .open-next/assets ] && [ "$(ls -A .open-next/assets 2>/dev/null)" ]; then cp -r .open-next/assets/* .open-next/; else echo 'Warning: .open-next/assets is missing or empty; skipping asset copy.' >&2; fi && node -e 'require("fs").writeFileSync(".open-next/_routes.json", JSON.stringify({version:1,include:["/*"],exclude:["/_next/static/*","/favicon.ico","/robots.txt","/sitemap.xml","/404.html","/BUILD_ID"]},null,2))' && printf 'compatibility_date = "2026-02-01"\\ncompatibility_flags = ["nodejs_compat"]\\n' > .open-next/wrangler.toml"""
-
-with open('frontend/project-01/package.json', 'w') as f:
-    json.dump(data, f, indent=2)
-
-print("✅ package.json updated")
-EOF
+            # 使用 Python 腳本修復 package.json
+            python3 scripts/fix-package-json.py
           fi
           
           echo "issues=$ISSUES" >> $GITHUB_OUTPUT
