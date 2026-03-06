@@ -3,7 +3,7 @@ name: Cloudflare Pages Complete Auto-Fix Loop
 on:
   # 觸發條件
   workflow_run:
-    workflows: ["Cloudflare Workers and Pages"]
+    workflows: ["Deploy to Cloudflare Pages"]
     types: [completed]
     branches: [main, 'copilot/*']
   
@@ -17,6 +17,10 @@ on:
         description: 'Force fix even if no issues detected'
         required: false
         default: 'false'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
